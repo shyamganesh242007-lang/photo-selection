@@ -2,6 +2,7 @@
 -- PHOTO SELECTION APPLICATION - DATABASE SCHEMA MIGRATION
 -- Project: Photo Selection
 -- Target: Supabase (PostgreSQL)
+-- Architecture: 3 Tables (galleries, photos, selections)
 -- ==============================================================================
 
 -- 1. EXTENSIONS
@@ -65,7 +66,9 @@ CREATE TABLE IF NOT EXISTS photos (
 
   -- Constraints
   CONSTRAINT chk_photos_sort_order_non_negative CHECK (sort_order >= 0),
-  CONSTRAINT uq_photos_gallery_relative_path UNIQUE (gallery_id, original_relative_path)
+  CONSTRAINT uq_photos_gallery_relative_path UNIQUE (gallery_id, original_relative_path),
+  -- Compound unique candidate key required for composite foreign key constraint in selections
+  CONSTRAINT uq_photos_id_gallery UNIQUE (id, gallery_id)
 );
 
 -- Indexes for photos
@@ -75,36 +78,41 @@ CREATE INDEX IF NOT EXISTS idx_photos_gallery_sort_order ON photos(gallery_id, s
 -- ==============================================================================
 -- TABLE 3: selections
 -- Records customer-selected photo IDs for a gallery.
--- Prevents duplicate selections of the same photo.
+-- Prevents duplicate selections and strictly ensures selections.gallery_id
+-- always matches the gallery_id of selections.photo_id.
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS selections (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   gallery_id UUID NOT NULL REFERENCES galleries(id) ON DELETE CASCADE,
-  photo_id UUID NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+  photo_id UUID NOT NULL,
   selected_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
 
-  -- Constraints
-  -- A photo cannot be inserted into selections more than once
-  CONSTRAINT uq_selections_gallery_photo UNIQUE (gallery_id, photo_id),
-  CONSTRAINT uq_selections_photo UNIQUE (photo_id)
+  -- Integrity Constraints
+  -- 1. Enforces that selections.gallery_id MUST MATCH photos.gallery_id for the given photo_id
+  CONSTRAINT fk_selections_photo_gallery_match
+    FOREIGN KEY (photo_id, gallery_id)
+    REFERENCES photos (id, gallery_id)
+    ON DELETE CASCADE,
+
+  -- 2. Prevents the same photo from ever being inserted twice into selections
+  CONSTRAINT uq_selections_photo UNIQUE (photo_id),
+
+  -- 3. Explicit unique constraint on (gallery_id, photo_id)
+  CONSTRAINT uq_selections_gallery_photo UNIQUE (gallery_id, photo_id)
 );
 
 -- Indexes for selections
 CREATE INDEX IF NOT EXISTS idx_selections_gallery_id ON selections(gallery_id);
 CREATE INDEX IF NOT EXISTS idx_selections_photo_id ON selections(photo_id);
+CREATE INDEX IF NOT EXISTS idx_selections_gallery_photo ON selections(gallery_id, photo_id);
 
 -- ==============================================================================
 -- SECURITY & ROW LEVEL SECURITY (RLS)
 -- Enable RLS on all tables.
--- By default with no open policies, all direct anon access is denied.
--- Supabase service_role key automatically bypasses RLS for trusted backend tasks.
+-- By default with no open policies, all direct public anonymous queries are denied.
+-- Supabase service_role key automatically bypasses RLS for trusted backend operations.
 -- ==============================================================================
 
 ALTER TABLE galleries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE photos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE selections ENABLE ROW LEVEL SECURITY;
-
--- Baseline RLS Posture:
--- Tables are locked down by default against unrestricted public access.
--- When public access / client tokens are implemented in later phases,
--- targeted scoped policies (e.g., token-based or auth-based) can be applied.
