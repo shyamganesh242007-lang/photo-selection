@@ -182,3 +182,43 @@
     border-right-color: var(--border);
   }
 }
+
+/* ==============================================================================
+   CUSTOMER GALLERY RESPONSIVE STYLES (STEP 9)
+   ============================================================================== */
+@media (max-width: 640px) {
+  #customer-photo-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .customer-photo-card {
+    border-radius: 8px !important;
+  }
+}
+
+/* ==============================================================================
+   SHARING CONTROLS & DASHBOARD MOBILE RESPONSIVE (STEP 14)
+   ============================================================================== */
+@media (max-width: 640px) {
+  [id^="customer-link-section-"] {
+    padding: 10px 12px !important;
+  }
+
+  [id^="customer-link-section-"] > div:last-child {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  [id^="customer-link-section-"] > div:last-child > div:last-child {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  [id^="gallery-item-"] {
+    padding: 16px 14px !important;
+  }
+}
+
